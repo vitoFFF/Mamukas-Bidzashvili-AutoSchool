@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="color-scheme" content="light dark">
+    <title>TestDrive Pro</title>
+
+    <!-- iPadOS & Mobile PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="TestDrive">
+    <link rel="apple-touch-icon" href="icons/location.png">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.3/leaflet.css" />
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Leaflet JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.3/leaflet.js"></script>
+</head>
+
+<body class="theme-sunset">
+
+    <!-- Header with Centered Title -->
+    <header class="app-header">
+        <div class="title-container">
+            <h1 class="app-title"><i class="fas fa-steering-wheel"></i> TestDrive</h1>
+        </div>
+        <button id="openSettingsBtn" class="glass-icon-btn" aria-label="Settings">
+            <i class="fas fa-sliders-h"></i>
+        </button>
+    </header>
+
+    <!-- Route Selector -->
+    <nav class="button-container">
+        <button class="btn route-btn active" id="route1Btn" data-route="1">
+            <span class="dot dot-r1"></span> Route 1
+        </button>
+        <button class="btn route-btn" id="route2Btn" data-route="2">
+            <span class="dot dot-r2"></span> Route 2
+        </button>
+        <button class="btn route-btn" id="route3Btn" data-route="3">
+            <span class="dot dot-r3"></span> Route 3
+        </button>
+    </nav>
+
+    <!-- Map & HUD Container -->
+    <div class="map-wrapper">
+        <div id="mapRotator" class="map-rotator">
+            <main id="map"></main>
+        </div>
+
+        <!-- Speedometer HUD (Speed Limit Badge Hidden) -->
+        <div id="speedometerHud" class="speedometer-hud">
+            <div class="speed-display">
+                <span id="speedValue" class="speed-num">0</span>
+                <span class="speed-unit">KM/H</span>
+            </div>
+        </div>
+
+        <!-- Debug HUD (Hidden unless enabled in Settings) -->
+        <div id="debugHud" class="debug-hud" style="display: none;">
+            <div class="debug-hud-title"><i class="fas fa-bug"></i> Checkpoint Debug</div>
+            <div class="debug-hud-grid">
+                <span class="dbg-k">Route</span><span id="dbgRoute" class="dbg-v">—</span>
+                <span class="dbg-k">Expected</span><span id="dbgExpected" class="dbg-v">—</span>
+                <span class="dbg-k">Fired</span><span id="dbgFired" class="dbg-v">—</span>
+                <span class="dbg-k">Nearest</span><span id="dbgNearest" class="dbg-v">—</span>
+                <span class="dbg-k">To Next</span><span id="dbgNextDist" class="dbg-v">—</span>
+                <span class="dbg-k">GPS Acc</span><span id="dbgAccuracy" class="dbg-v">—</span>
+                <span class="dbg-k">Speed</span><span id="dbgSpeed" class="dbg-v">—</span>
+                <span class="dbg-k">Heading</span><span id="dbgHeading" class="dbg-v">—</span>
+                <span class="dbg-k">Sim</span><span id="dbgSim" class="dbg-v">—</span>
+                <span class="dbg-k">Queue</span><span id="dbgQueue" class="dbg-v">—</span>
+            </div>
+            <div id="debugHudLog" class="debug-hud-log"></div>
+        </div>
+
+        <!-- Compass / Reset Heading Button -->
+        <button id="compassBtn" class="compass-btn" aria-label="Reset North">
+            <i id="compassIcon" class="fas fa-location-arrow"></i>
+        </button>
+
+        <!-- Demo Drive / Simulation Floating Bar -->
+        <div id="demoControlBar" class="demo-control-bar">
+            <button id="demoCloseBtn" class="demo-close-btn" aria-label="Close Demo">
+                <i class="fas fa-times"></i>
+            </button>
+            <button id="demoPlayBtn" class="demo-action-btn" aria-label="Play/Pause Demo">
+                <i class="fas fa-play"></i>
+            </button>
+            <button id="demoRestartBtn" class="demo-action-btn restart" aria-label="Restart Demo">
+                <i class="fas fa-rotate-left"></i>
+            </button>
+            <button id="demoJump27Btn" class="demo-action-btn" aria-label="Jump Demo to #27" title="Jump Demo to #27">
+                <i class="fas fa-forward"></i>
+            </button>
+            <div class="demo-speed-pills">
+                <button class="speed-pill active" data-speed="1">1×</button>
+                <button class="speed-pill" data-speed="2">2×</button>
+                <button class="speed-pill" data-speed="5">5×</button>
+            </div>
+            <button id="demoVoiceBtn" class="demo-voice-btn active" aria-label="Toggle Demo Voice">
+                <i id="demoVoiceIcon" class="fas fa-volume-high"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Settings Drawer -->
+    <div id="settingsDrawer" class="settings-drawer">
+        <div class="drawer-header">
+            <h2><i class="fas fa-cog"></i> Settings</h2>
+            <button id="closeSettingsBtn" class="close-btn" aria-label="Close Settings">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="drawer-content">
+
+            <!-- 1. Navigation Mode Card (Default: ON) -->
+            <div class="settings-card">
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <span class="setting-title"><i class="fas fa-location-arrow"></i> Navigation Mode</span>
+                        <span class="setting-desc">Auto-follow vehicle & dynamic speed zooming</span>
+                    </div>
+                    <label class="ios-switch">
+                        <input type="checkbox" id="navModeToggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 2. Auto-Rotate Heading Card (Visible only when Nav Mode is ON) -->
+            <div class="settings-card" id="autoRotateCard">
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <span class="setting-title"><i class="fas fa-compass"></i> Auto-Rotate Map</span>
+                        <span class="setting-desc">Rotate map facing driving direction</span>
+                    </div>
+                    <label class="ios-switch">
+                        <input type="checkbox" id="autoRotateToggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 3. Show/Hide Checkpoints Card (Default: OFF) -->
+            <div class="settings-card">
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <span class="setting-title"><i class="fas fa-map-pin"></i> Show Checkpoints</span>
+                        <span class="setting-desc">Display numbered pin markers on map</span>
+                    </div>
+                    <label class="ios-switch">
+                        <input type="checkbox" id="showCheckpointsToggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 5. Demo Drive Mode Card [TEMP-HIDDEN: remove style="display:none;" to restore] -->
+            <div class="settings-card" style="display: none;">
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <span class="setting-title"><i class="fas fa-play-circle"></i> Demo Simulation</span>
+                        <span class="setting-desc">Show virtual drive dock for route memorization</span>
+                    </div>
+                    <label class="ios-switch">
+                        <input type="checkbox" id="demoModeToggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 5. Debug Mode Card (Default: OFF) [TEMP-HIDDEN: remove style="display:none;" to restore] -->
+            <div class="settings-card" style="display: none;">
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <span class="setting-title"><i class="fas fa-bug"></i> Debug Mode</span>
+                        <span class="setting-desc">Show checkpoint HUD</span>
+                    </div>
+                    <label class="ios-switch">
+                        <input type="checkbox" id="debugToggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 6. Test: Jump to Nearest Checkpoint -->
+            <div class="settings-card">
+                <span class="setting-title-block"><i class="fas fa-location-crosshairs"></i> Exam Test Tools</span>
+                <span class="setting-desc" style="display:block;margin-bottom:10px;">Finds nearest checkpoint to your GPS and continues exam from there. No need to drive from #1.</span>
+                <button id="jumpNearestBtn" class="jump-btn"><i class="fas fa-forward"></i> Jump to Nearest Checkpoint</button>
+            </div>
+
+            <!-- 7. Theme Picker (Default: Sunset Amber) -->
+            <div class="settings-card">
+                <span class="setting-title-block"><i class="fas fa-palette"></i> Themes</span>
+                <div class="theme-grid">
+                    <button class="theme-chip" data-theme="theme-navy">
+                        <span class="color-preview navy"></span> Royal Navy
+                    </button>
+                    <button class="theme-chip" data-theme="theme-emerald">
+                        <span class="color-preview emerald"></span> Emerald Pro
+                    </button>
+                    <button class="theme-chip" data-theme="theme-nordic">
+                        <span class="color-preview nordic"></span> Nordic Slate
+                    </button>
+                    <button class="theme-chip active" data-theme="theme-sunset">
+                        <span class="color-preview sunset"></span> Sunset Amber
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    <div id="drawerOverlay" class="drawer-overlay"></div>
+
+    <!-- Application Script -->
+    <script src="script.js"></script>
+</body>
+
+</html>

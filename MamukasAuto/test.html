@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Route Checkpoints Editor</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { display: flex; flex-direction: column; height: 100vh; background: #1e1e2e; color: #cdd6f4; }
+    
+    header {
+      background: #181825;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #313244;
+    }
+    header h1 { font-size: 18px; color: #f38ba8; }
+    
+    .header-controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    select {
+      background: #313244;
+      color: #cdd6f4;
+      border: 1px solid #45475a;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    #container { display: flex; flex: 1; height: calc(100vh - 55px); overflow: hidden; }
+    
+    #map { flex: 1; height: 100%; }
+
+    #sidebar {
+      width: 440px;
+      background: #181825;
+      border-left: 1px solid #313244;
+      display: flex;
+      flex-direction: column;
+      padding: 15px;
+      gap: 15px;
+      overflow-y: auto;
+    }
+
+    .stats {
+      background: #313244;
+      padding: 10px 15px;
+      border-radius: 6px;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .code-box {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+    }
+
+    .code-box label {
+      font-size: 13px;
+      font-weight: bold;
+      color: #f38ba8;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    textarea {
+      width: 100%;
+      height: 100%;
+      min-height: 480px;
+      background: #11111b;
+      color: #a6e3a1;
+      border: 1px solid #45475a;
+      border-radius: 6px;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 11px;
+      resize: vertical;
+    }
+
+    button {
+      background: #f38ba8;
+      color: #11111b;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.2s;
+    }
+    button:hover { background: #f5c2e7; }
+    button.btn-secondary { background: #89b4fa; }
+    button.btn-secondary:hover { background: #b4befe; }
+
+    /* Number Icon Marker */
+    .marker-number {
+      background-color: #f38ba8;
+      color: #11111b;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid #ffffff;
+      font-weight: bold;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+    }
+    .marker-number.start-pin { background-color: #a6e3a1; }
+    .marker-number.end-pin { background-color: #cba6f7; }
+
+    /* Custom Tooltip */
+    .leaflet-tooltip.cp-tooltip {
+      background: #181825;
+      border: 1px solid #f38ba8;
+      color: #cdd6f4;
+      font-size: 11px;
+      font-weight: bold;
+      padding: 3px 8px;
+      border-radius: 4px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <h1>📍 Checkpoint Position Editor</h1>
+    </div>
+
+    <div class="header-controls">
+      <select id="routeSelect" onchange="changeRoute()">
+        <option value="1">Route 1 (39 Points)</option>
+        <option value="2">Route 2 (46 Points)</option>
+        <option value="3">Route 3 (41 Points)</option>
+      </select>
+      <button id="toggleViewBtn" class="btn-secondary">Toggle Street/Satellite</button>
+    </div>
+  </header>
+
+  <div id="container">
+    <div id="map"></div>
+
+    <div id="sidebar">
+      <div class="stats">
+        <span>Checkpoints Count: <strong id="pointCount">0</strong></span>
+        <button class="btn-secondary" onclick="resetRoute()">Reset Current Route</button>
+      </div>
+
+      <div class="code-box">
+        <label>
+          checkpoints Output
+          <button onclick="copyToClipboard('checkpointOutput')">📋 Copy checkpoints</button>
+        </label>
+        <textarea id="checkpointOutput" readonly></textarea>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const routesData = {
+      "1": [
+        [41.9281967, 42.0308033, "start"],
+        [41.9280721, 42.0307739, "right"],
+        [41.9273250, 42.0303133, "directlyunstillsigh"],
+        [41.9234850, 42.0205150, "directlyunstillsigh"],
+        [41.9213883, 42.0123400, "500rightonCircle"],
+        [41.9209250, 42.0096283, "300rightonCircle"],
+        [41.9212083, 42.0074183, "rightonCircle"],
+        [41.9230633, 42.0057433, "Sright"],
+        [41.9237033, 42.0065400, "directlyunstillsigh"],
+        [41.9254583, 42.0140983, "directlyunstillsigh"],
+        [41.9267567, 42.0179917, "500left"],
+        [41.9275750, 42.0199083, "300left"],
+        [41.9286067, 42.0224267, "Sleft"],
+        [41.9298417, 42.0220850, "Sleft"],
+        [41.9296883, 42.0203850, "300left"],
+        [41.9290633, 42.0190600, "Sleft"],
+        [41.9281667, 42.0180467, "Sright"],
+        [41.9266900, 42.0178083, "directlyunstillsigh"],
+        [41.9246850, 42.0116467, "500right"],
+        [41.9240600, 42.0092050, "300right"],
+        [41.9237700, 42.0069950, "Sright"],
+        [41.9242867, 42.0055483, "300leftonCircle"],
+        [41.9261817, 42.0054933, "leftonCircle"],
+        [41.9271317, 42.0045067, "300lEFTlFETcIRCLE"],
+        [41.9264867, 42.0027050, "SleftLfetCircle"],
+        [41.9268283, 42.0038717, "dcircle"],
+        [41.9273700, 42.0067667, "leftRightOnCircle"],
+        [41.9262633, 42.0098633, "directlyunstillsigh"],
+        [41.9252733, 42.0106750, "300left"],
+        [41.9237017, 42.0114817, "Sleft"],
+        [41.9227250, 42.0126450, "300right"],
+        [41.9234183, 42.0141450, "Sright"],
+        [41.9231133, 42.0160400, "Sleft"],
+        [41.9224117, 42.0176017, "directlyunstillsigh"],
+        [41.9252283, 42.0254867, "500left"],
+        [41.9261767, 42.0277833, "300left"],
+        [41.9269683, 42.0296133, "Sleft"],
+        [41.9277300, 42.0309217, "finishtan"],
+        [41.9277783, 42.0309017, "stop"]
+      ],
+      "2": [
+        [41.9281967, 42.0308033, "start"],
+        [41.9279963, 42.0307878, "Sright"],
+        [41.9271367, 42.0299017, "directlyunstillsigh"],
+        [41.9232083, 42.0197017, "directlyunstillsigh"],
+        [41.9213383, 42.0120783, "500rightonCircle"],
+        [41.9209250, 42.0096083, "300rightonCircle"],
+        [41.9211550, 42.0075733, "rightonCircle"],
+        [41.9230433, 42.0057950, "Sright"],
+        [41.9236267, 42.0058517, "directlyunstillsigh"],
+        [41.9258483, 42.0153283, "300left"],
+        [41.9265600, 42.0174900, "Sleft"],
+        [41.9278033, 42.0182217, "Sright"],
+        [41.9288133, 42.0184533, "300right"],
+        [41.9295650, 42.0203017, "Sright"],
+        [41.9296583, 42.0224533, "Sright"],
+        [41.9286467, 42.0225417, "directlyunstillsigh"],
+        [41.9262433, 42.0166917, "directlyunstillsigh"],
+        [41.9256917, 42.0146750, "directlyunstillsigh"],
+        [41.9252783, 42.0134567, "500left"],
+        [41.9246000, 42.0113200, "300left"],
+        [41.9240333, 42.0090367, "Sright"],
+        [41.9232817, 42.0075917, "Sright"],
+        [41.9223833, 42.0070050, "rightleft"],
+        [41.9231283, 42.0052850, "300right"],
+        [41.9231533, 42.0031083, "Sright"],
+        [41.9237283, 42.0017433, "rightonCircle"],
+        [41.9252217, 42.0009350, "rightonCircle"],
+        [41.9269017, 42.0041667, "cirlce"],
+        [41.9274000, 42.0063867, "leftleft"],
+        [41.9275233, 42.0065350, "leftonCircle"],
+        [41.9260300, 42.0054217, "directlyunstillsigh"],
+        [41.9235733, 42.0058500, "cirlce"],
+        [41.9228233, 42.0056867, "leftRightOnCircle"],
+        [41.9208150, 42.0090117, "300left"],
+        [41.9211500, 42.0111583, "Sleft"],
+        [41.9218250, 42.0124233, "Sright"],
+        [41.9231517, 42.0135817, "500right"],
+        [41.9237600, 42.0148833, "300right"],
+        [41.9248567, 42.0181967, "Sright"],
+        [41.9239850, 42.0195217, "Sleft"],
+        [41.9234067, 42.0204283, "directlyunstillsigh"],
+        [41.9253117, 42.0256283, "500left"],
+        [41.9261967, 42.0278300, "300left"],
+        [41.9270517, 42.0297717, "Sleft"],
+        [41.9277117, 42.0309650, "finishtan"],
+        [41.9277817, 42.0309117, "stop"]
+      ],
+      "3": [
+        [41.9281967, 42.0308033, "start"],
+        [41.9280617, 42.0307633, "Sright"],
+        [41.9266233, 42.0287950, "300right"],
+        [41.9259517, 42.0271867, "Sright"],
+        [41.9266217, 42.0248317, "300left"],
+        [41.9281333, 42.0240017, "Sleft"],
+        [41.9283400, 42.0217000, "300left"],
+        [41.9273900, 42.0194483, "Sleft"],
+        [41.9259117, 42.0188467, "300right"],
+        [41.9239650, 42.0195233, "Sright"],
+        [41.9230600, 42.0192767, "directlyunstillsigh"],
+        [41.9219967, 42.0160250, "300right"],
+        [41.9216183, 42.0137300, "Sright"],
+        [41.9220217, 42.0122817, "300left"],
+        [41.9234583, 42.0116150, "Sleft"],
+        [41.9240850, 42.0092433, "300right"],
+        [41.9237683, 42.0069550, "Sright"],
+        [41.9244800, 42.0056133, "300leftonCircle"],
+        [41.9263067, 42.0054917, "rightonCircle"],
+        [41.9272867, 42.0061000, "leftleft"],
+        [41.9275067, 42.0066617, "dcircle"],
+        [41.9265333, 42.0028933, "leftRightOnCircle"],
+        [41.9253617, 42.0009850, "leftonCircle"],
+        [41.9235583, 42.0018250, "Sleft"],
+        [41.9230902, 42.0025063, "300right"],
+        [41.9230400, 42.0044967, "Sright"],
+        [41.9228733, 42.0056567, "leftRightOnCircle"],
+        [41.9210867, 42.0107617, "500left"],
+        [41.9214900, 42.0131100, "300left"],
+        [41.9218167, 42.0150083, "Sleft"],
+        [41.9231433, 42.0160433, "300right"],
+        [41.9249250, 42.0151417, "Sright"],
+        [41.9267317, 42.0178883, "500right"],
+        [41.9276650, 42.0201717, "300right"],
+        [41.9286217, 42.0224867, "Sright"],
+        [41.9277967, 42.0241517, "300left"],
+        [41.9260050, 42.0251217, "Sleft"],
+        [41.9262100, 42.0279083, "300left"],
+        [41.9270100, 42.0297167, "Sleft"],
+        [41.9276833, 42.0309650, "finishtan"],
+        [41.9278365, 42.0308752, "stop"]
+      ]
+    };
+
+    let currentRouteKey = "1";
+    let initialCheckpoints = JSON.parse(JSON.stringify(routesData[currentRouteKey]));
+    let checkpoints = JSON.parse(JSON.stringify(initialCheckpoints));
+
+    let map = L.map('map').setView([41.925, 42.015], 15);
+
+    // Esri Satellite Layer (Default)
+    let satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: 'Tiles &copy; Esri'
+    }).addTo(map);
+
+    let streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap'
+    });
+
+    document.getElementById('toggleViewBtn').addEventListener('click', function() {
+      if (map.hasLayer(satelliteLayer)) {
+        map.removeLayer(satelliteLayer);
+        map.addLayer(streetLayer);
+      } else {
+        map.removeLayer(streetLayer);
+        map.addLayer(satelliteLayer);
+      }
+    });
+
+    let markers = [];
+    let dragLines = [];
+    let anchorDots = [];
+
+    function init() {
+      renderMap();
+      updateOutputs();
+    }
+
+    function clearDragGraphics() {
+      dragLines.forEach(l => map.removeLayer(l));
+      anchorDots.forEach(d => map.removeLayer(d));
+      dragLines = [];
+      anchorDots = [];
+    }
+
+    function changeRoute() {
+      currentRouteKey = document.getElementById('routeSelect').value;
+      initialCheckpoints = JSON.parse(JSON.stringify(routesData[currentRouteKey]));
+      checkpoints = JSON.parse(JSON.stringify(initialCheckpoints));
+      clearDragGraphics();
+      renderMap();
+      updateOutputs();
+    }
+
+    function renderMap() {
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
+
+      checkpoints.forEach((cp, idx) => {
+        let lat = cp[0];
+        let lng = cp[1];
+        let action = cp[2] || "directly";
+
+        let origPos = L.latLng(initialCheckpoints[idx][0], initialCheckpoints[idx][1]);
+
+        let isStart = idx === 0;
+        let isEnd = idx === checkpoints.length - 1;
+        let pinClass = isStart ? 'start-pin' : (isEnd ? 'end-pin' : '');
+
+        // Numeric-only Marker Icon
+        let customIcon = L.divIcon({
+          className: 'custom-div-icon',
+          html: `<div class="marker-number ${pinClass}">${idx + 1}</div>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        });
+
+        let marker = L.marker([lat, lng], { icon: customIcon, draggable: true }).addTo(map);
+
+        let currentPos = L.latLng(lat, lng);
+        let distFromOrig = origPos.distanceTo(currentPos);
+
+        // Tooltip showing ONLY index number and live distance when moved
+        marker.bindTooltip(`#${idx + 1}${distFromOrig > 0.5 ? ` (${distFromOrig.toFixed(1)}m)` : ''}`, {
+          permanent: false,
+          direction: 'top',
+          className: 'cp-tooltip'
+        });
+
+        // Popup to edit action string
+        let popupContent = document.createElement('div');
+        popupContent.style.minWidth = "170px";
+        popupContent.innerHTML = `
+          <strong style="color:#1e293b; font-size:13px;">Checkpoint #${idx + 1}</strong><br>
+          <small style="color:#64748b;">Distance moved: <strong id="dist-val-${idx}" style="color:#2563eb;">${distFromOrig.toFixed(1)} m</strong></small><br><br>
+          <label style="font-size:11px; color:#475569; font-weight:bold;">Action Audio Key:</label><br>
+          <input type="text" value="${action}" id="actionInput-${idx}" style="width:100%; padding:4px; margin-top:2px; border:1px solid #cbd5e1; border-radius:4px;">
+        `;
+
+        marker.bindPopup(popupContent);
+
+        marker.on('popupopen', () => {
+          let input = document.getElementById(`actionInput-${idx}`);
+          if (input) {
+            input.addEventListener('input', (e) => {
+              checkpoints[idx][2] = e.target.value;
+              updateOutputs();
+            });
+          }
+        });
+
+        let activeDashLine = null;
+        let activeAnchorDot = null;
+
+        // DRAG EVENT - Shows dashed connection line to origin + live distance
+        marker.on('dragstart', function () {
+          marker.openTooltip();
+
+          // Create origin anchor dot
+          activeAnchorDot = L.circleMarker(origPos, {
+            radius: 4,
+            color: '#94a3b8',
+            fillColor: '#94a3b8',
+            fillOpacity: 1
+          }).addTo(map);
+
+          // Create dashed line connecting origin to dragged marker
+          activeDashLine = L.polyline([origPos, marker.getLatLng()], {
+            color: '#ef4444',
+            weight: 2,
+            dashArray: '5, 5'
+          }).addTo(map);
+
+          dragLines.push(activeDashLine);
+          anchorDots.push(activeAnchorDot);
+        });
+
+        marker.on('drag', function (e) {
+          let currLatLng = e.target.getLatLng();
+          let liveDist = origPos.distanceTo(currLatLng);
+
+          if (activeDashLine) {
+            activeDashLine.setLatLngs([origPos, currLatLng]);
+          }
+
+          marker.setTooltipContent(`#${idx + 1}: 📏 ${liveDist.toFixed(1)}m moved`);
+
+          let distValElem = document.getElementById(`dist-val-${idx}`);
+          if (distValElem) {
+            distValElem.textContent = liveDist.toFixed(1) + ' m';
+          }
+        });
+
+        marker.on('dragend', function (e) {
+          let newLatLng = e.target.getLatLng();
+          checkpoints[idx][0] = parseFloat(newLatLng.lat.toFixed(7));
+          checkpoints[idx][1] = parseFloat(newLatLng.lng.toFixed(7));
+
+          let finalDist = origPos.distanceTo(newLatLng);
+          marker.setTooltipContent(`#${idx + 1}${finalDist > 0.5 ? ` (${finalDist.toFixed(1)}m)` : ''}`);
+
+          updateOutputs();
+        });
+
+        markers.push(marker);
+      });
+
+      document.getElementById('pointCount').textContent = checkpoints.length;
+    }
+
+    function resetRoute() {
+      if (confirm(`Reset Route ${currentRouteKey} to original coordinates?`)) {
+        clearDragGraphics();
+        checkpoints = JSON.parse(JSON.stringify(routesData[currentRouteKey]));
+        renderMap();
+        updateOutputs();
+      }
+    }
+
+    function updateOutputs() {
+      let checkpointArr = checkpoints.map((p, i) => `    [${p[0]}, ${p[1]}, "${p[2] || 'directly'}"]`);
+      let checkpointText = `// Route ${currentRouteKey} Checkpoints (${checkpoints.length} points)\nlet checkpoints${currentRouteKey} = [\n` + checkpointArr.join(",\n") + "\n];";
+      document.getElementById('checkpointOutput').value = checkpointText;
+    }
+
+    function copyToClipboard(id) {
+      let textarea = document.getElementById(id);
+      textarea.select();
+      document.execCommand('copy');
+      alert(`Copied Route ${currentRouteKey} checkpoints to clipboard!`);
+    }
+
+    init();
+  </script>
+</body>
+</html>
